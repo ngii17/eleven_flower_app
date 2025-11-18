@@ -4,7 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.0.2.2:8000/api';  // Ganti ke IP PC kalau device fisik
+  static const String baseUrl = 'http://10.114.99.132:8000/api';  // Ganti ke IP PC kalau device fisik
   static const String tokenKey = 'auth_token';
 
   // Login
