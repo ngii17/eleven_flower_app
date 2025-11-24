@@ -1,15 +1,26 @@
+// models/category.dart
 class Category {
   final int id;
   final String nama;
-  final int productsCount;
 
-  Category({required this.id, required this.nama, this.productsCount = 0});
+  Category({required this.id, required this.nama});
 
   factory Category.fromJson(Map<String, dynamic> json) {
     return Category(
-      id: json['id'],
-      nama: json['nama'],
-      productsCount: json['products_count'] ?? 0,
+      id: json['id'] as int,
+      nama: json['nama'] as String? ?? 'Unknown',
     );
   }
+
+  // <<< FIX UTAMA: Override == & hashCode biar Set dedup berdasarkan ID
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Category && runtimeType == other.runtimeType && id == other.id;
+
+  @override
+  int get hashCode => id.hashCode;
+
+  @override
+  String toString() => nama;
 }

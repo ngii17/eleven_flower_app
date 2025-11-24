@@ -26,25 +26,48 @@ class _CatalogScreenState extends State<CatalogScreen> {
   }
 
   Future<void> _loadData() async {
+    if (!mounted) return;
+
     setState(() => isLoading = true);
+
     try {
       final cats = await _apiService.getCategories();
+
+      // FIX DUPLIKAT: Sekarang Set pakai == berdasarkan ID (dari Category model)
+      final uniqueCats = cats.toSet().toList();  // Dedup bener berdasarkan ID
+      uniqueCats.sort((a, b) => a.nama.compareTo(b.nama));
+
+      if (!mounted) return;
+
       final prods = await _apiService.getProducts(
-        categoryId: selectedCategory?.id,
-        search: searchQuery,
+        categoryId: selectedCategory?.id == 0 ? null : selectedCategory?.id,
+        search: searchQuery.isEmpty ? null : searchQuery,
       );
-    setState(() {
-      categories = [
-        Category(id: 0, nama: 'Semua Kategori'),  // Buat objek Category dummy
-        ...cats
-  ];
-  products = prods;
-  selectedCategory ??= categories[0];  // Default pilih "Semua Kategori"
-});
+
+      if (!mounted) return;
+
+      setState(() {
+        categories = [
+          Category(id: 0, nama: 'Semua Kategori'),  // Dummy unik ID=0
+          ...uniqueCats
+        ];
+        products = prods;
+        // FIX SELECTED: Cari exact match berdasarkan ID, atau default ke dummy
+        selectedCategory = categories.firstWhere(
+          (cat) => cat.id == (selectedCategory?.id ?? 0),
+          orElse: () => categories[0],
+        );
+      });
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error: $e')),
+        );
+      }
     } finally {
-      setState(() => isLoading = false);
+      if (mounted) {
+        setState(() => isLoading = false);
+      }
     }
   }
 
@@ -52,14 +75,14 @@ class _CatalogScreenState extends State<CatalogScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Katalog Bunga'),
+        title: const Text('Katalog Bunga'),
         backgroundColor: Colors.pink[50],
       ),
       body: Column(
         children: [
           // Search + Filter
           Padding(
-            padding: EdgeInsets.all(12),
+            padding: const EdgeInsets.all(12),
             child: Row(
               children: [
                 Expanded(
@@ -70,22 +93,36 @@ class _CatalogScreenState extends State<CatalogScreen> {
                     },
                     decoration: InputDecoration(
                       hintText: 'Cari produk...',
-                      prefixIcon: Icon(Icons.search),
-                      border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                      prefixIcon: const Icon(Icons.search),
+                      border: OutlineInputBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
                     ),
                   ),
                 ),
-                SizedBox(width: 8),
-                DropdownButton<Category>(
-                  hint: Text('Kategori'),
-                  value: selectedCategory,
-                  items: categories.map((cat) {
-                    return DropdownMenuItem(value: cat, child: Text(cat.nama));
-                  }).toList(),
-                  onChanged: (val) {
-                    setState(() => selectedCategory = val);
-                    _loadData();
-                  },
+                const SizedBox(width: 8),
+                SizedBox(
+                  width: 150,
+                  child: DropdownButton<Category>(
+                    hint: const Text('Kategori'),
+                    value: selectedCategory,
+                    isExpanded: true,
+                    items: categories.map((cat) {
+                      return DropdownMenuItem<Category>(
+                        value: cat,
+                        child: Text(
+                          cat.nama,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      );
+                    }).toList(),
+                    onChanged: (val) {
+                      setState(() {
+                        selectedCategory = val;
+                      });
+                      _loadData();  // Reload dengan kategori baru
+                    },
+                  ),
                 ),
               ],
             ),
@@ -97,74 +134,93 @@ class _CatalogScreenState extends State<CatalogScreen> {
                 ? Center(child: CircularProgressIndicator())
                 : RefreshIndicator(
                     onRefresh: _loadData,
-                    child: GridView.builder(
-                      padding: EdgeInsets.all(12),
-                      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                        crossAxisCount: 2,
-                        childAspectRatio: 0.75,
-                        crossAxisSpacing: 12,
-                        mainAxisSpacing: 12,
-                      ),
-                      itemCount: products.length,
-                      itemBuilder: (context, index) {
-                        final product = products[index];
-                        return GestureDetector(
-                          onTap: () => Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (context) => ProductDetailScreen(product: product),
-                            ),
-                          ),
-                          child: Card(
-                            elevation: 4,
-                            shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                    child: products.isEmpty
+                        ? Center(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                ClipRRect(
-                                  borderRadius: BorderRadius.vertical(top: Radius.circular(12)),
-                                  child: Image.network(
-                                    product.imageUrl,
-                                    height: 120,
-                                    width: double.infinity,
-                                    fit: BoxFit.cover,
-                                    errorBuilder: (_, __, ___) => Container(
-                                      height: 120,
-                                      color: Colors.grey[300],
-                                      child: Icon(Icons.image_not_supported),
-                                    ),
+                                Icon(Icons.local_florist, size: 64, color: Colors.grey),
+                                const SizedBox(height: 16),
+                                const Text('Belum ada produk di kategori ini. Coba pilih kategori lain!'),
+                              ],
+                            ),
+                          )
+                        : GridView.builder(
+                            padding: const EdgeInsets.all(12),
+                            gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              childAspectRatio: 0.75,
+                              crossAxisSpacing: 12,
+                              mainAxisSpacing: 12,
+                            ),
+                            itemCount: products.length,
+                            itemBuilder: (context, index) {
+                              final product = products[index];
+                              return GestureDetector(
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (context) => ProductDetailScreen(product: product),
                                   ),
                                 ),
-                                Padding(
-                                  padding: EdgeInsets.all(8),
+                                child: Card(
+                                  elevation: 4,
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
                                   child: Column(
                                     crossAxisAlignment: CrossAxisAlignment.start,
                                     children: [
-                                      Text(
-                                        product.name,
-                                        style: TextStyle(fontWeight: FontWeight.bold),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
+                                      ClipRRect(
+                                        borderRadius: const BorderRadius.vertical(
+                                          top: Radius.circular(12),
+                                        ),
+                                        child: Image.network(
+                                          product.imageUrl,
+                                          height: 120,
+                                          width: double.infinity,
+                                          fit: BoxFit.cover,
+                                          errorBuilder: (_, __, ___) => Container(
+                                            height: 120,
+                                            color: Colors.grey[300],
+                                            child: const Icon(Icons.image_not_supported),
+                                          ),
+                                        ),
                                       ),
-                                      Text(
-                                        product.category.nama,
-                                        style: TextStyle(color: Colors.pink, fontSize: 12),
+                                      Padding(
+                                        padding: const EdgeInsets.all(8),
+                                        child: Column(
+                                          crossAxisAlignment: CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              product.name,
+                                              style: const TextStyle(fontWeight: FontWeight.bold),
+                                              maxLines: 1,
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                            Text(
+                                              product.category.nama,
+                                              style: TextStyle(color: Colors.pink, fontSize: 12),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              'Rp ${product.price.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
+                                              style: TextStyle(
+                                                fontSize: 16,
+                                                fontWeight: FontWeight.bold,
+                                                color: Colors.green[700],
+                                              ),
+                                            ),
+                                            Text('Stock: ${product.stock}', style: TextStyle(fontSize: 11)),
+                                          ],
+                                        ),
                                       ),
-                                      SizedBox(height: 4),
-                                      Text(
-                                        'Rp ${product.price.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
-                                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold, color: Colors.green[700]),
-                                      ),
-                                      Text('Stock: ${product.stock}', style: TextStyle(fontSize: 11)),
                                     ],
                                   ),
                                 ),
-                              ],
-                            ),
+                              );
+                            },
                           ),
-                        );
-                      },
-                    ),
                   ),
           ),
         ],

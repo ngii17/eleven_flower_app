@@ -6,7 +6,9 @@ import '../models/category.dart';
 import '../models/product.dart';
 
 class ApiService {
-  static const String baseUrl = 'http://10.114.99.132:8000/api';  // Ganti ke IP PC kalau device fisik
+static const String baseUrl = 'http://10.0.2.2:8000/api';
+// Tambahin base URL untuk gambar biar aman
+static const String baseStorageUrl = 'http://10.0.2.2:8000/storage/';
   static const String tokenKey = 'auth_token';
 
   // Login
@@ -86,29 +88,40 @@ class ApiService {
 
     // Ambil semua kategori (untuk dropdown)
   Future<List<Category>> getCategories() async {
-    final response = await http.get(Uri.parse('$baseUrl/categories'));
-    if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body)['data'];
-      return data.map((json) => Category.fromJson(json)).toList();
-    }
-    throw Exception('Gagal ambil kategori');
+  final response = await http.get(Uri.parse('$baseUrl/categories'));
+  print('Categories Response: ${response.body}'); // DEBUG
+
+  if (response.statusCode == 200) {
+    final Map<String, dynamic> body = jsonDecode(response.body);
+    final List data = body['data'] ?? body; // kadang langsung array
+    return data.map((json) => Category.fromJson(json)).toList();
   }
+  throw Exception('Gagal ambil kategori: ${response.body}');
+}
 
   // Ambil list produk (dengan filter & search)
-  Future<List<Product>> getProducts({int? categoryId, String? search}) async {
-    var uri = Uri.parse('$baseUrl/products');
-    if (categoryId != null || search != null) {
-      uri = uri.replace(queryParameters: {
-        if (categoryId != null) 'category_id': categoryId.toString(),
-        if (search != null && search.isNotEmpty) 'q': search,
-      });
-    }
-
-    final response = await http.get(uri);
-    if (response.statusCode == 200) {
-      final List data = jsonDecode(response.body)['data'];
-      return data.map((json) => Product.fromJson(json)).toList();
-    }
-    throw Exception('Gagal ambil produk: ${response.body}');
+  // getProducts — tambahin print biar tau response apa
+Future<List<Product>> getProducts({int? categoryId, String? search}) async {
+  var uri = Uri.parse('$baseUrl/products');
+  if (categoryId != null || search != null) {
+    uri = uri.replace(queryParameters: {
+      if (categoryId != null && categoryId != 0) 'category_id': categoryId.toString(),
+      if (search != null && search.isNotEmpty) 'q': search,
+    });
   }
+
+  final response = await http.get(uri);
+  
+  // DEBUG: Liat apa yang dikirim backend
+  print('URL: $uri');
+  print('Status: ${response.statusCode}');
+  print('Response: ${response.body}');
+
+  if (response.statusCode == 200) {
+    final Map<String, dynamic> body = jsonDecode(response.body);
+    final List data = body['data'];
+    return data.map((json) => Product.fromJson(json)).toList();
+  }
+  throw Exception('Gagal ambil produk: ${response.body}');
+}
 }
