@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/product.dart';
 import '../models/category.dart';
 import '../services/api_service.dart';
+import '../providers/auth_provider.dart';
 import 'product_detail_screen.dart';
+import 'cart_screen.dart';  // Import CartScreen (pastikan file ini ada)
 
 class CatalogScreen extends StatefulWidget {
   const CatalogScreen({super.key});
@@ -77,6 +80,28 @@ class _CatalogScreenState extends State<CatalogScreen> {
       appBar: AppBar(
         title: const Text('Katalog Bunga'),
         backgroundColor: Colors.pink[50],
+        actions: [
+          // ICON KERANJANG — TAMBAHAN INI!
+          Consumer<AuthProvider>(
+            builder: (context, auth, child) {
+              if (!auth.isLoggedIn) {
+                return IconButton(
+                  icon: const Icon(Icons.shopping_cart_outlined, color: Colors.grey),
+                  onPressed: () => ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Silakan login dulu untuk keranjang!')),
+                  ),
+                );
+              }
+              return IconButton(
+                icon: const Icon(Icons.shopping_cart),
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const CartScreen()),
+                ),
+              );
+            },
+          ),
+        ],
       ),
       body: Column(
         children: [
@@ -131,7 +156,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
           // Loading atau Grid Produk
           Expanded(
             child: isLoading
-                ? Center(child: CircularProgressIndicator())
+                ? const Center(child: CircularProgressIndicator())
                 : RefreshIndicator(
                     onRefresh: _loadData,
                     child: products.isEmpty
@@ -139,7 +164,7 @@ class _CatalogScreenState extends State<CatalogScreen> {
                             child: Column(
                               mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                Icon(Icons.local_florist, size: 64, color: Colors.grey),
+                                const Icon(Icons.local_florist, size: 64, color: Colors.grey),
                                 const SizedBox(height: 16),
                                 const Text('Belum ada produk di kategori ini. Coba pilih kategori lain!'),
                               ],

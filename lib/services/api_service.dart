@@ -4,6 +4,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../models/user.dart';
 import '../models/category.dart';
 import '../models/product.dart';
+import '../models/cart.dart';
 
 class ApiService {
 static const String baseUrl = 'http://10.0.2.2:8000/api';
@@ -109,6 +110,7 @@ Future<List<Product>> getProducts({int? categoryId, String? search}) async {
       if (search != null && search.isNotEmpty) 'q': search,
     });
   }
+  
 
   final response = await http.get(uri);
   
@@ -124,4 +126,81 @@ Future<List<Product>> getProducts({int? categoryId, String? search}) async {
   }
   throw Exception('Gagal ambil produk: ${response.body}');
 }
+
+    // Ambil cart user (protected, butuh login)
+  Future<Cart> getCart() async {
+    final headers = await getHeaders();
+    final response = await http.get(Uri.parse('$baseUrl/carts'), headers: headers);
+
+    if (response.statusCode == 200) {
+      final data = jsonDecode(response.body);
+      return Cart.fromJson(data);
+    }
+    throw Exception('Gagal ambil cart: ${response.body}');
+  }
+
+  // Tambah ke cart
+  Future<void> addToCart(int productId, int quantity) async {
+    final headers = await getHeaders();
+    print('DEBUG Add to Cart: Product ID = $productId, Quantity = $quantity');  // Debug input
+    print('DEBUG Headers: $headers');  // Debug token ada gak
+
+    final response = await http.post(
+      Uri.parse('$baseUrl/cart-items'),
+      headers: headers,
+      body: jsonEncode({'product_id': productId, 'quantity': quantity}),
+    );
+
+    print('DEBUG Add to Cart Status: ${response.statusCode}');  // Debug status
+    print('DEBUG Add to Cart Body: ${response.body}');  // Debug response (paling penting)
+
+    if (response.statusCode != 201) {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Gagal tambah ke cart: ${response.body}');
+    }
+  }
+
+  // Update quantity item
+  Future<void> updateCartItem(int itemId, int quantity) async {
+    final headers = await getHeaders();
+    final response = await http.put(
+      Uri.parse('$baseUrl/cart-items/$itemId'),
+      headers: headers,
+      body: jsonEncode({'quantity': quantity}),
+    );
+
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Gagal update cart');
+    }
+  }
+
+  // Hapus item dari cart
+  Future<void> removeFromCart(int itemId) async {
+    final headers = await getHeaders();
+    final response = await http.delete(
+      Uri.parse('$baseUrl/cart-items/$itemId'),
+      headers: headers,
+    );
+
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Gagal hapus dari cart');
+    }
+  }
+
+  // Kosongkan cart
+  Future<void> clearCart() async {
+    final headers = await getHeaders();
+    final response = await http.post(
+      Uri.parse('$baseUrl/carts/clear'),
+      headers: headers,
+    );
+
+    if (response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Gagal kosongkan cart');
+    }
+  }
 }
+

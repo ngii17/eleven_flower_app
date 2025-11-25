@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 import '../models/product.dart';
+import '../providers/auth_provider.dart';
+import '../screens/catalog_screen.dart';  // Import untuk navigasi kembali
 
 class ProductDetailScreen extends StatelessWidget {
   final Product product;
@@ -8,6 +11,8 @@ class ProductDetailScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final authProvider = Provider.of<AuthProvider>(context);
+
     return Scaffold(
       appBar: AppBar(title: Text(product.name)),
       body: SingleChildScrollView(
@@ -45,9 +50,29 @@ class ProductDetailScreen extends StatelessWidget {
             SizedBox(
               width: double.infinity,
               child: ElevatedButton(
-                onPressed: () {
-                  ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fitur Add to Cart menyusul ya! 😄')));
-                },
+                onPressed: authProvider.isLoggedIn  // TAMBAHAN: Cek login dulu
+                    ? () async {
+                        try {
+                          await authProvider.addToCart(product.id, 1);  // Call real method
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Ditambahkan ke keranjang! 🛒')),
+                          );
+                          // TAMBAHAN: Kembali ke katalog dengan refresh (pull-to-refresh)
+                          Navigator.pushReplacement(
+                            context,
+                            MaterialPageRoute(builder: (context) => CatalogScreen()),
+                          );
+                        } catch (e) {
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(content: Text('Error: $e')),
+                          );
+                        }
+                      }
+                    : () {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Silakan login dulu untuk tambah ke keranjang!')),
+                        );
+                      },
                 style: ElevatedButton.styleFrom(
                   padding: EdgeInsets.symmetric(vertical: 16),
                   backgroundColor: Colors.pink,
