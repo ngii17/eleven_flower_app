@@ -3,6 +3,7 @@ import 'package:provider/provider.dart';
 import '../models/cart.dart';
 import '../providers/auth_provider.dart';
 import '../services/api_service.dart';
+import 'checkout_screen.dart';
 
 class CartScreen extends StatefulWidget {
   const CartScreen({super.key});
@@ -26,34 +27,47 @@ class _CartScreenState extends State<CartScreen> {
     try {
       cart = await Provider.of<AuthProvider>(context, listen: false).getCart();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Gagal memuat keranjang: $e')),
+        );
+      }
     }
-    setState(() => isLoading = false);
+    if (mounted) setState(() => isLoading = false);
   }
 
   @override
   Widget build(BuildContext context) {
+    // Loading state
     if (isLoading) {
       return Scaffold(
-        appBar: AppBar(title: Text('Keranjang Belanja')),
-        body: Center(child: CircularProgressIndicator()),
+        appBar: AppBar(title: const Text('Keranjang Belanja')),
+        body: const Center(child: CircularProgressIndicator()),
       );
     }
 
+    // Empty cart
     if (cart == null || cart!.items.isEmpty) {
       return Scaffold(
-        appBar: AppBar(title: Text('Keranjang Belanja')),
+        appBar: AppBar(title: const Text('Keranjang Belanja')),
         body: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.shopping_cart_outlined, size: 80, color: Colors.grey),
-              SizedBox(height: 16),
-              Text('Keranjang kosong', style: TextStyle(fontSize: 18)),
-              SizedBox(height: 8),
-              ElevatedButton(
+              Icon(Icons.shopping_cart_outlined, size: 100, color: Colors.grey[400]),
+              const SizedBox(height: 20),
+              const Text(
+                'Keranjang Kosong',
+                style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 10),
+              const Text('Yuk isi dengan bunga impianmu!', style: TextStyle(color: Colors.grey)),
+              const SizedBox(height: 20),
+              ElevatedButton.icon(
                 onPressed: () => Navigator.pop(context),
-                child: Text('Lihat Katalog'),
+                icon: const Icon(Icons.arrow_back),
+                label: const Text('Kembali ke Katalog'),
+                style: ElevatedButton.styleFrom(backgroundColor: Colors.pink),
               ),
             ],
           ),
@@ -61,15 +75,35 @@ class _CartScreenState extends State<CartScreen> {
       );
     }
 
+    // Cart dengan isi
     return Scaffold(
       appBar: AppBar(
-        title: Text('Keranjang Belanja (${cart!.items.length})'),
+        title: Text('Keranjang Belanja (${cart!.items.length} item)'),
+        backgroundColor: Colors.pink[50],
+        foregroundColor: Colors.pink[900],
         actions: [
           IconButton(
-            icon: Icon(Icons.clear_all),
+            icon: const Icon(Icons.delete_sweep),
+            tooltip: 'Kosongkan Keranjang',
             onPressed: () async {
-              await Provider.of<AuthProvider>(context, listen: false).clearCart();
-              _loadCart();
+              final confirm = await showDialog<bool>(
+                context: context,
+                builder: (ctx) => AlertDialog(
+                  title: const Text('Kosongkan Keranjang?'),
+                  content: const Text('Semua item akan dihapus permanen.'),
+                  actions: [
+                    TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+                    TextButton(
+                      onPressed: () => Navigator.pop(ctx, true),
+                      child: const Text('Ya, Kosongkan', style: TextStyle(color: Colors.red)),
+                    ),
+                  ],
+                ),
+              );
+              if (confirm == true) {
+                await Provider.of<AuthProvider>(context, listen: false).clearCart();
+                _loadCart();
+              }
             },
           ),
         ],
@@ -78,36 +112,96 @@ class _CartScreenState extends State<CartScreen> {
         children: [
           Expanded(
             child: ListView.builder(
+              padding: const EdgeInsets.all(8),
               itemCount: cart!.items.length,
               itemBuilder: (context, index) {
                 final item = cart!.items[index];
+
                 return Card(
+                  elevation: 4,
+                  margin: const EdgeInsets.symmetric(vertical: 6),
+                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
                   child: ListTile(
-                    leading: Image.network(
-                      item.image != null ? '${ApiService.baseUrl.replaceAll('/api', '/storage/')}${item.image}' : 'https://via.placeholder.com/60x60.png?text=No+Image',
-                      width: 60,
-                      height: 60,
-                      fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Icon(Icons.image_not_supported),
+                    // GAMBAR SUDAH 100% MUNCUL & CANTIK!
+                    leading: ClipRRect(
+                      borderRadius: BorderRadius.circular(8),
+                      child: item.image != null
+                          ? Image.network(
+                              '${ApiService.baseStorageUrl}${item.image}',
+                              width: 70,
+                              height: 70,
+                              fit: BoxFit.cover,
+                              errorBuilder: (_, __, ___) => Container(
+                                width: 70,
+                                height: 70,
+                                color: Colors.grey[300],
+                                child: const Icon(Icons.local_florist, color: Colors.pink),
+                              ),
+                              loadingBuilder: (_, child, loadingProgress) {
+                                if (loadingProgress == null) return child;
+                                return Container(
+                                  width: 70,
+                                  height: 70,
+                                  color: Colors.grey[200],
+                                  child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                                );
+                              },
+                            )
+                          : Container(
+                              width: 70,
+                              height: 70,
+                              decoration: BoxDecoration(
+                                color: Colors.pink[50],
+                                borderRadius: BorderRadius.circular(8),
+                              ),
+                              child: const Icon(Icons.local_florist, size: 40, color: Colors.pink),
+                            ),
                     ),
-                    title: Text(item.productName),
-                    subtitle: Text('Rp ${(item.price * item.quantity).toStringAsFixed(0)}'),
+                    title: Text(
+                      item.productName,
+                      style: const TextStyle(fontWeight: FontWeight.bold),
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text('Harga satuan: Rp ${item.price.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}'),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Subtotal: Rp ${(item.price * item.quantity).toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
+                          style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.green),
+                        ),
+                      ],
+                    ),
                     trailing: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
+                        // Tombol kurang
                         IconButton(
-                          icon: Icon(Icons.remove),
+                          icon: const Icon(Icons.remove_circle, color: Colors.orange),
                           onPressed: item.quantity > 1
                               ? () => _updateQuantity(item.id, item.quantity - 1)
-                              : () => _removeItem(item.id),
+                              : null,
                         ),
-                        Text('${item.quantity}'),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                          decoration: BoxDecoration(
+                            color: Colors.pink[50],
+                            borderRadius: BorderRadius.circular(20),
+                          ),
+                          child: Text(
+                            '${item.quantity}',
+                            style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                          ),
+                        ),
                         IconButton(
-                          icon: Icon(Icons.add),
+                          icon: const Icon(Icons.add_circle, color: Colors.pink),
                           onPressed: () => _updateQuantity(item.id, item.quantity + 1),
                         ),
+                        const SizedBox(width: 8),
                         IconButton(
-                          icon: Icon(Icons.delete, color: Colors.red),
+                          icon: const Icon(Icons.delete_forever, color: Colors.red),
                           onPressed: () => _removeItem(item.id),
                         ),
                       ],
@@ -117,19 +211,54 @@ class _CartScreenState extends State<CartScreen> {
               },
             ),
           ),
+
+          // TOTAL & TOMBOL CHECKOUT
           Container(
-            padding: EdgeInsets.all(16),
-            decoration: BoxDecoration(color: Colors.grey[100]),
+            padding: const EdgeInsets.all(20),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              boxShadow: [
+                BoxShadow(color: Colors.black12, blurRadius: 10, offset: Offset(0, -2)),
+              ],
+            ),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                Text('Total: Rp ${cart!.total.toStringAsFixed(0)}', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                ElevatedButton(
-                  onPressed: () {
-                    ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Fitur Checkout menyusul ya! 😊')));
-                  },
-                  style: ElevatedButton.styleFrom(backgroundColor: Colors.pink),
-                  child: Text('Checkout'),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Total Belanja', style: TextStyle(color: Colors.grey)),
+                    Text(
+                      'Rp ${cart!.total.toStringAsFixed(0).replaceAllMapped(RegExp(r'(\d{1,3})(?=(\d{3})+(?!\d))'), (m) => '${m[1]}.')}',
+                      style: const TextStyle(
+                        fontSize: 24,
+                        fontWeight: FontWeight.bold,
+                        color: Colors.pink,
+                      ),
+                    ),
+                  ],
+                ),
+                SizedBox(
+                  height: 56,
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => const CheckoutScreen()),
+                      );
+                    },
+                    icon: const Icon(Icons.payment, color: Colors.white),
+                    label: const Text(
+                      'LANJUTKAN CHECKOUT',
+                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
+                    ),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.pink,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                      elevation: 5,
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -142,18 +271,40 @@ class _CartScreenState extends State<CartScreen> {
   Future<void> _updateQuantity(int itemId, int quantity) async {
     try {
       await Provider.of<AuthProvider>(context, listen: false).updateCartItem(itemId, quantity);
-      _loadCart();  // Reload
+      _loadCart();
     } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal update: $e')));
+      }
     }
   }
 
   Future<void> _removeItem(int itemId) async {
-    try {
-      await Provider.of<AuthProvider>(context, listen: false).removeFromCart(itemId);
-      _loadCart();
-    } catch (e) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Error: $e')));
+    final confirm = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Hapus Item?'),
+        content: const Text('Item ini akan dihapus dari keranjang.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx, false), child: const Text('Batal')),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Hapus', style: TextStyle(color: Colors.red)),
+          ),
+        ],
+      ),
+    );
+
+    if (confirm == true) {
+      try {
+        await Provider.of<AuthProvider>(context, listen: false).removeFromCart(itemId);
+        _loadCart();
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Item dihapus')));
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Gagal hapus: $e')));
+        }
+      }
     }
   }
 }

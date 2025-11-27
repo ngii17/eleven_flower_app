@@ -5,11 +5,18 @@ import '../models/cart.dart';
 
 class AuthProvider with ChangeNotifier {
   User? _user;
+  String? _token; 
   bool _isLoading = false;
 
   User? get user => _user;
   bool get isLoading => _isLoading;
-  bool get isLoggedIn => _user != null;
+  
+  // [PERBAIKAN PENTING DI SINI] 
+  // Kita anggap login kalau Token ada (biarpun data user belum ke-load)
+  // Ini biar pas buka aplikasi gak mental ke halaman login lagi.
+  bool get isLoggedIn => _token != null; 
+  
+  String? get token => _token; 
 
   final ApiService _apiService = ApiService();
 
@@ -19,13 +26,9 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      // Panggil API
       final result = await _apiService.login(email, password);
-      
-      // FIX: Karena ApiService sudah melakukan User.fromJson, 
-      // di sini kita tinggal ambil object-nya saja.
       _user = result['user']; 
-      
+      _token = result['token']; 
       notifyListeners();
       return true;
     } catch (e) {
@@ -57,10 +60,8 @@ class AuthProvider with ChangeNotifier {
         email: email,
         password: password,
       );
-      
-      // Sama seperti login, langsung ambil object user
       _user = result['user'];
-      
+      _token = result['token']; 
       notifyListeners();
       return true;
     } catch (e) {
@@ -77,35 +78,48 @@ class AuthProvider with ChangeNotifier {
   Future<void> logout() async {
     await _apiService.logout();
     _user = null;
+    _token = null; 
     notifyListeners();
   }
 
   // --- CART FEATURES ---
-  
-  // Get cart
   Future<Cart> getCart() async {
     return await _apiService.getCart();
   }
 
-  // Add to cart
   Future<void> addToCart(int productId, int quantity) async {
     await _apiService.addToCart(productId, quantity);
-    // Tips: Kita tidak perlu notifyListeners di sini 
-    // karena CartScreen biasanya me-refresh data (getCart) saat dibuka.
   }
 
-  // Update cart item
   Future<void> updateCartItem(int itemId, int quantity) async {
     await _apiService.updateCartItem(itemId, quantity);
   }
 
-  // Remove from cart
   Future<void> removeFromCart(int itemId) async {
     await _apiService.removeFromCart(itemId);
   }
 
-  // Clear cart
   Future<void> clearCart() async {
     await _apiService.clearCart();
+  }
+
+  // --- AUTO LOGIN (Saat Aplikasi Dibuka) ---
+  Future<bool> tryAutoLogin() async {
+    final storedToken = await _apiService.getToken();
+    
+    // Kalau tidak ada token tersimpan di HP, berarti belum login
+    if (storedToken == null) {
+      return false; 
+    }
+    
+    // Kalau ada, kita simpan ke variabel _token
+    _token = storedToken;
+    
+    // Opsional: Di masa depan kamu bisa panggil API Profile disini 
+    // biar data _user terisi juga (misal: nama, email).
+    // Tapi untuk sekarang, asal _token ada, Checkout sudah bisa jalan.
+    
+    notifyListeners(); // Kabari main.dart kalau status login berubah
+    return true;
   }
 }
