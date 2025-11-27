@@ -1,14 +1,14 @@
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/user.dart';
+import '../models/user.dart'; 
 import '../models/category.dart';
 import '../models/product.dart';
 import '../models/cart.dart';
 
 class ApiService {
   static const String baseUrl = 'http://172.20.67.132:8000/api';
-  static const String baseStorageUrl = 'http://1172.20.67.132:8000/storage/';
+  static const String baseStorageUrl = 'http://172.20.67.132:8000/storage/';
   static const String tokenKey = 'auth_token';
 
   // ================== AUTH ==================
@@ -118,8 +118,6 @@ class ApiService {
 
     if (response.statusCode == 200) {
       final rawData = jsonDecode(response.body);
-
-      // Kadang Laravel kasih { "data": { ... } }, kadang langsung { "id": ..., "items": [...] }
       final cartData = rawData is Map<String, dynamic> && rawData.containsKey('data')
           ? rawData['data']
           : rawData;
@@ -127,7 +125,6 @@ class ApiService {
       return Cart.fromJson(cartData as Map<String, dynamic>);
     }
 
-    // Kalau token expired atau error lain, lempar error biar ditangkap UI
     throw Exception('Gagal mengambil keranjang. Silakan login ulang.');
   }
 
@@ -182,20 +179,17 @@ class ApiService {
     String? catatan,
   }) async {
     final headers = await getHeaders();
-
-    // Ambil cart dulu
     final cart = await getCart();
 
     if (cart.items.isEmpty) {
       throw Exception("Keranjang kosong! Silakan tambah produk terlebih dahulu.");
     }
 
-    // Gunakan data yang sudah benar-benar aman dari model CartItem (price dari product.price)
     final items = cart.items.map((item) {
       return {
         'product_id': item.productId,
         'quantity': item.quantity,
-        'price': item.price, // SUDAH AMAN karena sudah di-fix di model cart.dart
+        'price': item.price,
       };
     }).toList();
 
@@ -208,16 +202,11 @@ class ApiService {
       'items': items,
     };
 
-    print('CHECKOUT PAYLOAD: ${jsonEncode(payload)}');
-
     final response = await http.post(
       Uri.parse('$baseUrl/checkout'),
       headers: headers,
       body: jsonEncode(payload),
     );
-
-    print('Checkout Status: ${response.statusCode}');
-    print('Checkout Response: ${response.body}');
 
     if (response.statusCode == 200 || response.statusCode == 201) {
       return jsonDecode(response.body);
@@ -226,5 +215,61 @@ class ApiService {
       final message = error['message'] ?? 'Gagal checkout';
       throw Exception(message);
     }
+  }
+
+  // ================== HISTORY & REVIEW (FITUR BARU) ==================
+
+  // 1. Ambil Riwayat Pesanan
+  Future<List<dynamic>> getHistory() async {
+    final headers = await getHeaders();
+    final response = await http.get(
+      Uri.parse('$baseUrl/orders/history'),
+      headers: headers,
+    );
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body);
+      return body['data']; 
+    }
+    
+    throw Exception('Gagal mengambil riwayat pesanan');
+  }
+
+  // 2. Kirim Ulasan Produk
+  Future<void> sendReview({
+    required int orderId,
+    required int productId,
+    required int rating,
+    required String comment,
+  }) async {
+    final headers = await getHeaders();
+    final response = await http.post(
+      Uri.parse('$baseUrl/reviews'),
+      headers: headers,
+      body: jsonEncode({
+        'order_id': orderId,
+        'product_id': productId,
+        'rating': rating,
+        'comment': comment,
+      }),
+    );
+
+    if (response.statusCode != 201 && response.statusCode != 200) {
+      final data = jsonDecode(response.body);
+      throw Exception(data['message'] ?? 'Gagal mengirim ulasan');
+    }
+  }
+
+  // 3. Ambil List Ulasan per Produk (Public - Untuk Product Detail)
+  Future<List<dynamic>> getProductReviews(int productId) async {
+    // Tidak perlu header auth karena ini public route
+    final response = await http.get(Uri.parse('$baseUrl/products/$productId/reviews'));
+
+    if (response.statusCode == 200) {
+      final body = jsonDecode(response.body);
+      return body['data'];
+    }
+    // Jika kosong atau error, kembalikan list kosong saja biar aman
+    return [];
   }
 }
