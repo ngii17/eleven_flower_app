@@ -1,5 +1,7 @@
 package com.example.eleven_flower_app
 
-import io.flutter.embedding.android.FlutterActivity
+// PERUBAHAN: Ganti FlutterActivity jadi FlutterFragmentActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 
-class MainActivity : FlutterActivity()
+// PERUBAHAN: Class mewarisi FlutterFragmentActivity
+class MainActivity : FlutterFragmentActivity()

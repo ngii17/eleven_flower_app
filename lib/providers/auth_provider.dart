@@ -1,48 +1,41 @@
+// lib/providers/auth_provider.dart — FINAL & TIDAK MUTER-MUTER LAGI!
 import 'package:flutter/material.dart';
-import '../models/user.dart';
 import '../services/api_service.dart';
-import '../models/cart.dart';
+import '../models/user.dart';
+import '../models/cart.dart'; // WAJIB IMPORT!
 
 class AuthProvider with ChangeNotifier {
   User? _user;
-  String? _token; 
+  String? _token;
   bool _isLoading = false;
 
   User? get user => _user;
   bool get isLoading => _isLoading;
-  
-  // [PERBAIKAN PENTING DI SINI] 
-  // Kita anggap login kalau Token ada (biarpun data user belum ke-load)
-  // Ini biar pas buka aplikasi gak mental ke halaman login lagi.
-  bool get isLoggedIn => _token != null; 
-  
-  String? get token => _token; 
+  bool get isLoggedIn => _token != null;
+  String? get token => _token;
 
   final ApiService _apiService = ApiService();
 
-  // --- LOGIN ---
-  Future<bool> login(String email, String password) async {
+  // LOGIN — TIDAK MUTER-MUTER LAGI!
+  Future<void> login(String email, String password) async {
     _isLoading = true;
     notifyListeners();
 
     try {
       final result = await _apiService.login(email, password);
-      _user = result['user']; 
-      _token = result['token']; 
-      notifyListeners();
-      return true;
+      _user = result['user'];
+      _token = result['token'];
     } catch (e) {
-      print("Login Error: $e");
-      notifyListeners();
-      return false;
+      // Error sudah ditampilkan oleh ApiService.showError()
+      // Kita diam saja, biar loading berhenti
     } finally {
-      _isLoading = false;
+      _isLoading = false; // PASTI BERHENTI!
       notifyListeners();
     }
   }
 
-  // --- REGISTRASI ---
-  Future<bool> register({
+  // REGISTER — TIDAK MUTER-MUTER LAGI!
+  Future<void> register({
     required String nama,
     required String alamat,
     required String noTelepon,
@@ -53,73 +46,55 @@ class AuthProvider with ChangeNotifier {
     notifyListeners();
 
     try {
-      final result = await _apiService.register(
+      await _apiService.register(
         nama: nama,
         alamat: alamat,
         noTelepon: noTelepon,
         email: email,
         password: password,
       );
-      _user = result['user'];
-      _token = result['token']; 
+    } catch (e) {
+      // Error sudah ditampilkan global
+    } finally {
+      _isLoading = false; // PASTI BERHENTI!
+      notifyListeners();
+    }
+  }
+
+  Future<void> logout() async {
+    await _apiService.logout();
+    _user = null;
+    _token = null;
+    notifyListeners();
+  }
+
+  // CART
+  Future<Cart> getCart() async => await _apiService.getCart();
+  Future<void> addToCart(int id, int qty) async => await _apiService.addToCart(id, qty);
+  Future<void> updateCartItem(int id, int qty) async => await _apiService.updateCartItem(id, qty);
+  Future<void> removeFromCart(int id) async => await _apiService.removeFromCart(id);
+  Future<void> clearCart() async => await _apiService.clearCart();
+
+  Future<bool> tryAutoLogin() async {
+    final token = await _apiService.getToken();
+    if (token == null) return false;
+    _token = token;
+    notifyListeners();
+    return true;
+  }
+
+  Future<bool> updatePhoto(String path) async {
+    _isLoading = true;
+    notifyListeners();
+    try {
+      _user = await _apiService.updateProfilePhoto(path);
       notifyListeners();
       return true;
     } catch (e) {
-      print("Register Error: $e");
-      notifyListeners();
       return false;
     } finally {
       _isLoading = false;
       notifyListeners();
     }
-  }
-
-  // --- LOGOUT ---
-  Future<void> logout() async {
-    await _apiService.logout();
-    _user = null;
-    _token = null; 
-    notifyListeners();
-  }
-
-  // --- CART FEATURES ---
-  Future<Cart> getCart() async {
-    return await _apiService.getCart();
-  }
-
-  Future<void> addToCart(int productId, int quantity) async {
-    await _apiService.addToCart(productId, quantity);
-  }
-
-  Future<void> updateCartItem(int itemId, int quantity) async {
-    await _apiService.updateCartItem(itemId, quantity);
-  }
-
-  Future<void> removeFromCart(int itemId) async {
-    await _apiService.removeFromCart(itemId);
-  }
-
-  Future<void> clearCart() async {
-    await _apiService.clearCart();
-  }
-
-  // --- AUTO LOGIN (Saat Aplikasi Dibuka) ---
-  Future<bool> tryAutoLogin() async {
-    final storedToken = await _apiService.getToken();
-    
-    // Kalau tidak ada token tersimpan di HP, berarti belum login
-    if (storedToken == null) {
-      return false; 
-    }
-    
-    // Kalau ada, kita simpan ke variabel _token
-    _token = storedToken;
-    
-    // Opsional: Di masa depan kamu bisa panggil API Profile disini 
-    // biar data _user terisi juga (misal: nama, email).
-    // Tapi untuk sekarang, asal _token ada, Checkout sudah bisa jalan.
-    
-    notifyListeners(); // Kabari main.dart kalau status login berubah
-    return true;
   }
 }
